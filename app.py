@@ -129,7 +129,7 @@ OPENENV_YAML_CONTENT = {
 # ─────────────────────────────────────────────
 
 class ResetRequest(BaseModel):
-    task_id: str
+    task_id: Optional[str] = None
 
 
 class StepRequest(BaseModel):
@@ -239,10 +239,11 @@ async def get_task_detail(task_id: str):
 
 
 @app.post("/reset")
-async def reset(request: ResetRequest):
+async def reset(request: Optional[ResetRequest] = None):
+    task_id = request.task_id if request and request.task_id else "task_1_billing_duplicate"
     env = SupportTriageEnv()
     try:
-        obs = env.reset(task_id=request.task_id)
+        obs = env.reset(task_id=task_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -257,7 +258,7 @@ async def reset(request: ResetRequest):
     return {
         "episode_id": episode_id,
         "observation": obs.dict(),
-        "message": f"Episode started for task: {request.task_id}",
+        "message": f"Episode started for task: {task_id}",
     }
 
 
