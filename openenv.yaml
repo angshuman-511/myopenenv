@@ -1,0 +1,251 @@
+name: support-triage-v1
+version: 1.0.0
+description: >
+  Customer Support Triage & Resolution: A real-world environment where an AI agent
+  handles genuine customer support tickets. Tasks range from simple billing disputes
+  to furious enterprise customers with SLA breaches and legal threats. Agents must
+  correctly triage priority and category, gather missing diagnostic information,
+  craft empathetic responses, recognize policy edge cases, and escalate efficiently.
+
+tags:
+  - openenv
+  - customer-support
+  - triage
+  - nlp
+  - real-world
+  - business
+  - rl
+  - agent-evaluation
+
+author: openenv-support-triage
+license: Apache-2.0
+homepage: https://huggingface.co/spaces/openenv/support-triage-v1
+
+# ─── Tasks ───────────────────────────────────────────────────────────────────
+
+tasks:
+  - id: task_1_billing_duplicate
+    name: Duplicate Billing Charge
+    difficulty: easy
+    description: >
+      A verified Basic-tier customer reports a duplicate $29.99 charge. The agent
+      must triage as BILLING/MEDIUM priority, acknowledge the issue with empathy,
+      request transaction confirmation details, and escalate to the refunds team.
+    max_steps: 6
+    correct_priority: medium
+    correct_category: billing
+    scoring_rubric:
+      correct_triage: 0.25
+      customer_acknowledged: 0.20
+      info_requested_or_escalated: 0.25
+      resolution_quality: 0.30
+
+  - id: task_2_technical_crash
+    name: App Crash — Missing Diagnostics
+    difficulty: medium
+    description: >
+      A frustrated Premium-tier customer's app crashes on PDF export with a
+      presentation due tomorrow. Critical diagnostic info is missing (OS, version,
+      file details). Agent must empathize with urgency, gather diagnostics,
+      offer a workaround, and escalate to senior tech support.
+    max_steps: 8
+    correct_priority: high
+    correct_category: technical
+    scoring_rubric:
+      correct_triage: 0.20
+      empathy_for_urgency: 0.15
+      diagnostic_info_requested: 0.25
+      workaround_offered: 0.15
+      escalation_to_correct_team: 0.25
+
+  - id: task_3_enterprise_escalation
+    name: Enterprise Escalation — SLA Breach + Legal Threat
+    difficulty: hard
+    description: >
+      An Enterprise customer ($4,800 order) is furious: wrong product delivered,
+      3-week delay, 4 failed contacts, threatening chargebacks and legal action.
+      Agent must triage CRITICAL/REFUND, own the failure without deflection,
+      de-escalate with genuine empathy, escalate to management AND refunds team,
+      make a specific callback commitment, add a substantive internal note, and
+      recognize the enterprise SLA policy override for high-value refunds.
+    max_steps: 10
+    correct_priority: critical
+    correct_category: refund
+    scoring_rubric:
+      correct_triage_critical: 0.15
+      acknowledgment_without_deflection: 0.20
+      de_escalation_quality: 0.20
+      escalation_to_management: 0.15
+      concrete_commitment: 0.15
+      internal_note_added: 0.10
+      policy_override_recognized: 0.05
+
+# ─── Observation Space ───────────────────────────────────────────────────────
+
+observation_space:
+  type: dict
+  description: >
+    A structured snapshot of the current ticket, queue context, and episode metadata.
+  fields:
+    ticket:
+      type: object
+      description: Full ticket with message history, customer profile, and metadata
+      subfields:
+        ticket_id: string
+        subject: string
+        messages:
+          type: array
+          items:
+            role: "customer | agent | system"
+            content: string
+            timestamp: float
+            is_internal: bool
+        sentiment: "positive | neutral | frustrated | angry"
+        priority: "null | low | medium | high | critical"
+        category: "null | billing | technical | shipping | account | product | refund | general"
+        customer:
+          customer_id: string
+          name: string
+          email: string
+          account_tier: "free | basic | premium | enterprise"
+          account_age_days: int
+          total_orders: int
+          previous_tickets: int
+          is_verified: bool
+        order_id: "string | null"
+        order_amount: "float | null"
+    queue_stats:
+      type: object
+      fields:
+        total_open: int
+        critical_count: int
+        high_count: int
+        avg_wait_minutes: float
+        sla_breached_count: int
+    available_macros:
+      type: array
+      description: Names of pre-written response templates the agent can apply
+    available_actions:
+      type: array
+      description: Valid ActionType values at current step
+    step_number: int
+    max_steps: int
+    episode_id: string
+    task_id: string
+    task_description: string
+    elapsed_seconds: float
+
+# ─── Action Space ─────────────────────────────────────────────────────────────
+
+action_space:
+  type: dict
+  description: Typed action with conditional fields based on action_type
+  action_types:
+    triage:
+      description: Assign priority and category to the ticket (required first action)
+      required_fields: [priority, category]
+    respond:
+      description: Send a reply message visible to the customer
+      required_fields: [message]
+    request_info:
+      description: Ask the customer for additional information
+      required_fields: [message]
+    apply_macro:
+      description: Apply a pre-written response template
+      required_fields: [macro_name]
+      optional_fields: [macro_variables]
+    internal_note:
+      description: Add an internal note visible only to agents, not customers
+      required_fields: [message]
+    escalate:
+      description: Escalate to a specialist team
+      required_fields: [escalation_team]
+      optional_fields: [escalation_reason]
+      escalation_teams:
+        - billing_specialist
+        - senior_tech
+        - refunds_team
+        - account_security
+        - management
+    resolve:
+      description: Mark ticket as resolved (requires triage first)
+      required_fields: [resolution_summary]
+    close:
+      description: Close without resolution (spam/duplicate — penalized in this env)
+      required_fields: []
+
+# ─── Reward ──────────────────────────────────────────────────────────────────
+
+reward:
+  range: [-1.0, 1.0]
+  type: dense
+  description: >
+    Shaped reward providing signal throughout the episode, not just at termination.
+  components:
+    triage_accuracy:
+      value: "+0.15 if priority correct, -0.10 if wrong; +0.10 if category correct, -0.05 if wrong"
+    response_quality:
+      value: "0.05–0.10 based on message length appropriateness (10–120 words ideal)"
+    empathy_bonus:
+      value: "+0.05 for empathetic first response to frustrated/angry customers"
+    escalation_accuracy:
+      value: "+0.15 if correct team, -0.05 if wrong team"
+    resolution_bonus:
+      value: "+0.20 for resolve after engaging; +0.05 efficiency bonus if ≤50% steps used"
+    internal_note:
+      value: "+0.01–0.03 for adding substantive internal notes"
+    premature_close:
+      value: "-0.15 for closing without resolving (tickets are never spam in this env)"
+    repetition_penalty:
+      value: "-0.08 × repeat_count for repeating same action_type ≥3 times"
+
+# ─── Episode Boundaries ───────────────────────────────────────────────────────
+
+episode:
+  termination_conditions:
+    - Agent calls resolve action
+    - Agent calls close action
+    - step_number >= max_steps (truncation)
+  reset_behavior: >
+    Each reset() generates a clean EpisodeState with fresh ticket copy,
+    empty action history, zero cumulative reward, all flags cleared.
+
+# ─── Endpoints ───────────────────────────────────────────────────────────────
+
+endpoints:
+  base_url: "http://localhost:7860"
+  reset:
+    method: POST
+    path: /reset
+    body: '{"task_id": "task_1_billing_duplicate"}'
+  step:
+    method: POST
+    path: /step
+    body: '{"episode_id": "<id>", "action": {"action_type": "triage", "priority": "medium", "category": "billing"}}'
+  state:
+    method: GET
+    path: /state?episode_id=<id>
+  tasks:
+    method: GET
+    path: /tasks
+  grade:
+    method: POST
+    path: /grade?episode_id=<id>
+  health:
+    method: GET
+    path: /health
+
+# ─── Baseline Scores (gpt-4o-mini) ───────────────────────────────────────────
+
+baseline_scores:
+  model: gpt-4o-mini
+  task_1_billing_duplicate:
+    mean: 0.72
+    difficulty: easy
+  task_2_technical_crash:
+    mean: 0.58
+    difficulty: medium
+  task_3_enterprise_escalation:
+    mean: 0.38
+    difficulty: hard
+  overall_mean: 0.56
