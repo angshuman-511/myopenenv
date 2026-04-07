@@ -303,7 +303,7 @@ async def grade_episode(episode_id: str):
     return {"episode_id": episode_id, "task_id": state.task_id, "grade": result}
 
 
-def run_server() -> None:
+def main() -> None:
     import uvicorn
 
     port = int(os.environ.get("PORT", 7860))
@@ -311,4 +311,4 @@ def run_server() -> None:
 
 
 if __name__ == "__main__":
-    run_server()
+    main()

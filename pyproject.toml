@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "app:run_server"
+server = "app:main"
 
 [tool.setuptools]
 include-package-data = true
