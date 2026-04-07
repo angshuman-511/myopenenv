@@ -13,6 +13,7 @@ authors = [
   { name = "openenv-support-triage" }
 ]
 dependencies = [
+  "openenv>=0.2.0",
   "fastapi==0.111.0",
   "uvicorn[standard]==0.29.0",
   "pydantic==2.7.1",
@@ -21,6 +22,9 @@ dependencies = [
   "requests>=2.31.0",
   "python-multipart==0.0.9"
 ]
+
+[project.scripts]
+server = "app:run_server"
 
 [tool.setuptools]
 include-package-data = true
